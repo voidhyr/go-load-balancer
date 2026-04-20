@@ -5,9 +5,9 @@ An L7 HTTP load balancer built in Go with round-robin scheduling and active heal
 ## Features
 
 - **Round-robin scheduling** — distributes requests evenly across backends
-- **Active health checks** — pings backends every 5 seconds, automatically removes dead servers
+- **Active health checks** — pings `/health` endpoint every 10 seconds, automatically removes dead servers
 - **Automatic recovery** — detects when a backend comes back online and restores it to the pool
-- **Thread-safe** — per-server mutex ensures safe concurrent access
+- **Thread-safe** — RWMutex allows concurrent reads with exclusive writes for safe concurrent access
 - **Timeout handling** — health checks have a 2 second timeout to avoid hanging
 
 ## Architecture
@@ -15,6 +15,7 @@ An L7 HTTP load balancer built in Go with round-robin scheduling and active heal
 ```
 Client → Load Balancer (:8080) → Backend 1 (:8081)
                                → Backend 2 (:8082)
+                               → Backend 3 (:8083)
 ```
 
 If a backend goes down, all traffic is rerouted to healthy backends automatically.
@@ -26,6 +27,7 @@ When it recovers, it rejoins the pool without restarting the balancer.
 ```bash
 go run server.go 8081
 go run server.go 8082
+go run server.go 8083
 ```
 
 **Start the load balancer:**
@@ -43,32 +45,42 @@ curl http://localhost:8080
 
 Expected output:
 ```
-Hello from server on port 8081
-Hello from server on port 8082
-Hello from server on port 8081
-Hello from server on port 8082
+Hello from backend server on port 8081
+Hello from backend server on port 8082
+Hello from backend server on port 8083
+Hello from backend server on port 8081
 ```
 
 **Test health checks:**
 
-Stop one backend with `Ctrl+C` — the balancer detects it within 5 seconds:
+Stop one backend with `Ctrl+C` — the balancer detects it within 10 seconds:
 ```
-❌ Server DOWN: http://localhost:8081
+❌ Server DOWN: http://localhost:8082
 ```
 
-All traffic automatically routes to the remaining healthy backend.
-Restart the backend and it rejoins the pool:
+All traffic automatically routes to the remaining healthy backends.
+Restart the backend and it rejoins the pool within 10 seconds:
 ```
-✅ Server UP: http://localhost:8081
+✅ Server UP: http://localhost:8082
 ```
+
+**Test all backends down:**
+
+Stop all three backends — balancer returns HTTP 503:
+```
+⚠️  All servers are down!
+```
+
+Restart any backend and service resumes automatically.
 
 ## Built with
 
-- Go standard library
+- Go 1.26.1
+- `net/http` — HTTP server and health check client
 - `net/http/httputil` — reverse proxy
-- `sync.Mutex` — thread-safe server state
-- `net/http` — health check client with timeout
+- `sync.RWMutex` — concurrent read-safe server state
+- `time.NewTicker` — precise fixed-interval health checks
 
 ## Part of
 
-Case Study: L7 HTTP Load Balancer
+MSc Computer Science Case Study — L7 HTTP Load Balancer
