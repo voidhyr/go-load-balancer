@@ -14,13 +14,13 @@ type Server struct {
 	address string
 	proxy   *httputil.ReverseProxy
 	alive   bool
-	mu      sync.Mutex
+	mu      sync.RWMutex
 }
 
 // isAlive safely checks if the server is alive
 func (s *Server) isAlive() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.alive
 }
 
@@ -58,9 +58,9 @@ func (lb *LoadBalancer) nextServer() *Server {
 // healthCheck pings a server to see if it is alive
 func healthCheck(s *Server) {
 	client := http.Client{
-		Timeout: 2 * time.Second,
+		Timeout: 3 * time.Second,
 	}
-	resp, err := client.Get(s.address)
+	resp, err := client.Get(s.address + "/health")
 	if err != nil || resp.StatusCode != http.StatusOK {
 		if s.isAlive() {
 			fmt.Printf("❌ Server DOWN: %s\n", s.address)
@@ -79,11 +79,20 @@ func healthCheck(s *Server) {
 // startHealthChecks runs health checks every 5 seconds
 func startHealthChecks(lb *LoadBalancer) {
 	go func() {
-		for {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			start := time.Now()
+			fmt.Printf("⏱ Cycle started at: %s\n",
+				start.Format("15:04:05"))
+
 			for _, server := range lb.servers {
 				healthCheck(server)
 			}
-			time.Sleep(5 * time.Second)
+
+			fmt.Printf("⏱ Cycle ended at:   %s\n",
+				time.Now().Format("15:04:05"))
 		}
 	}()
 }
@@ -104,10 +113,11 @@ func (lb *LoadBalancer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	// define your two backend servers
+	// define your three backend servers
 	addresses := []string{
 		"http://localhost:8081",
 		"http://localhost:8082",
+		"http://localhost:8083",
 	}
 
 	// create server objects
