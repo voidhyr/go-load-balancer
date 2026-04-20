@@ -2,6 +2,14 @@
 
 An L7 HTTP load balancer built in Go with round-robin scheduling and active health checks.
 
+## Demo
+
+![Load Balancer Demo](docs/images/demo.png)
+
+*Round Robin distribution across three backends, health check cycles every 10 seconds,
+automatic failure detection and recovery — demonstrating complete self-healing behavior
+without manual intervention.*
+
 ## Features
 
 - **Round-robin scheduling** — distributes requests evenly across backends
@@ -73,6 +81,13 @@ Stop all three backends — balancer returns HTTP 503:
 
 Restart any backend and service resumes automatically.
 
+**Test with race detector:**
+```bash
+go run -race balancer.go
+```
+
+No race condition warnings confirms correct concurrent access using RWMutex.
+
 ## Built with
 
 - Go 1.26.1
@@ -80,6 +95,7 @@ Restart any backend and service resumes automatically.
 - `net/http/httputil` — reverse proxy
 - `sync.RWMutex` — concurrent read-safe server state
 - `time.NewTicker` — precise fixed-interval health checks
+- No external dependencies — standard library only
 
 ## Part of
 
